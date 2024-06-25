@@ -1,5 +1,5 @@
 import psycopg2
-
+from psycopg2.sql import SQL, Identifier
 
 def create_db(conn):
     with conn.cursor() as cur:
@@ -10,9 +10,9 @@ def create_db(conn):
         cur.execute(""" 
         CREATE TABLE IF NOT EXISTS client_info(
             client_id SERIAL PRIMARY KEY,
-            first_name VARCHAR(20) NOT NULL,
-            last_name VARCHAR(20) NOT NULL,
-            email VARCHAR(40) NOT NULL UNIQUE
+            first_name VARCHAR(20),
+            last_name VARCHAR(20),
+            email VARCHAR(40)
         );    
         """)
         cur.execute("""
@@ -47,12 +47,14 @@ def add_phone(conn, client_id, phone):
 
 def change_client(conn, client_id, first_name=None, last_name=None, email=None):
     with conn.cursor() as cur:
+        arg_list = {'first_name': first_name, 'last_name': last_name, 'email': email}
+        for key, arg in arg_list.items():
+            if arg:
+                cur.execute(SQL('UPDATE client_info SET {}=%s WHERE client_id = %s').format(Identifier(key)), (arg,client_id))
         cur.execute('''
-        UPDATE client_info
-        SET first_name=%s, last_name=%s, email=%s
-        WHERE client_id=%s
-        RETURNING client_id, first_name, last_name, email;
-        ''', (first_name, last_name, email, client_id))
+            SELECT * FROM client_info
+            WHERE client_id = %s;
+            ''', client_id)
         return cur.fetchall()
 
 
@@ -92,22 +94,27 @@ def find_client(conn, first_name=None, last_name=None, email=None, phone=None):
         cur.execute('''
         SELECT * FROM client_info c
         LEFT JOIN phonebook p ON c.client_id = p.client_id
-        WHERE c.first_name=%s OR c.last_name=%s OR c.email=%s OR p.phone=%s;
-        ''', (first_name, last_name, email, phone,))
+        WHERE (first_name = %(first_name)s OR %(first_name)s IS NULL)
+        AND (last_name = %(last_name)s OR %(last_name)s IS NULL)
+        AND (email = %(email)s OR %(email)s IS NULL)
+        AND (phone = %(phone)s OR %(phone)s IS NULL);
+        ''', {'first_name': first_name, 'last_name': last_name, 'email': email, 'phone': phone})
         return cur.fetchone()
 
-with psycopg2.connect(database='clients_db', user='postgres', password='Pderfhm86') as conn:
 
-    # create_db(conn)
-    # print(add_client(conn, 'Azat', 'Khasanov', 'azatkh@mail.ru'))
-    # print(add_phone(conn, 1, 89123456789))
-    # print(change_client(conn, '1', 'Mikel', 'Jackson', 'bazar@mail.com'))
-    # print(change_phone(conn, '1', '89123456790'))
-    # print(delete_phone(conn, '1', '89123456789'))
-    # print(delete_client(conn, '1'))
-    # print(find_client(conn, first_name='Azat'))
-    with conn.cursor() as cur:
-        cur.execute("""
-        SELECT * FROM phonebook;
-        """)
-        print(cur.fetchall())
+if __name__ == '__main__':
+    with psycopg2.connect(database='postgres', user='postgres', password='Pderfhm86') as conn:
+
+        # create_db(conn)
+        # print(add_client(conn, 'Azat', 'Khasanov', 'azatkh@mail.ru'))
+        # print(add_phone(conn, 11, 89123456789))
+        # print(change_client(conn, '1', last_name='Jackson'))
+        # print(change_phone(conn, '1', '89123456790'))
+        # print(delete_phone(conn, '1', '89123456790'))
+        # print(delete_client(conn, '1'))
+        # print(find_client(conn, last_name='Khasanov'))
+        # with conn.cursor() as cur:
+        #     cur.execute("""
+        #     SELECT * FROM client_info;
+        #     """)
+        #     print(cur.fetchall())
